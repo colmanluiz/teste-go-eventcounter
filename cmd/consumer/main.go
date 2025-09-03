@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"flag"
+	"log"
 )
 
 var (
@@ -37,6 +38,8 @@ func (c *ConsumerStr) Created(ctx context.Context, uid string) error {
 	}
 
 	c.eventCounts[uid]["created"]++
+	log.Printf("User %s now has %d created events", uid,
+		c.eventCounts[uid]["created"])
 	return nil
 }
 
@@ -46,6 +49,8 @@ func (c *ConsumerStr) Updated(ctx context.Context, uid string) error {
 	}
 
 	c.eventCounts[uid]["updated"]++
+	log.Printf("User %s now has %d updated events", uid,
+		c.eventCounts[uid]["updated"])
 	return nil
 }
 
@@ -55,9 +60,21 @@ func (c *ConsumerStr) Deleted(ctx context.Context, uid string) error {
 	}
 
 	c.eventCounts[uid]["deleted"]++
+	log.Printf("User %s now has %d deleted events", uid,
+		c.eventCounts[uid]["deleted"])
 	return nil
 }
 
 func main() {
+	consumer := &ConsumerStr{
+		eventCounts: make(map[string]map[string]int),
+	}
 
+	if err := Declare(); err != nil {
+		log.Printf("can`t declare queue or exchange, err: %s", err.Error())
+	}
+
+	if err := Receive(consumer); err != nil {
+		log.Printf("can't consume any message, err: %s", err.Error())
+	}
 }

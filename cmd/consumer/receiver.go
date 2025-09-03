@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"strings"
@@ -75,12 +76,13 @@ func Receive(consumer *ConsumerStr) error {
 		return err
 	}
 
-	processedMessages := make(map[string]bool) // implement later
+	// processedMessages := make(map[string]bool) // implement later
 
 	for msg := range deliveries {
 		parts := strings.Split(msg.RoutingKey, ".")
 		userId := parts[0]
 		eventType := parts[2]
+		ctx := context.Background()
 
 		mb := MessageBody{}
 		err := json.Unmarshal(msg.Body, &mb)
