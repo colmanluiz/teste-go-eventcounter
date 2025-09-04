@@ -77,4 +77,8 @@ func main() {
 	if err := Receive(consumer); err != nil {
 		log.Printf("can't consume any message, err: %s", err.Error())
 	}
+
+	if err := WriteJSONOutput(consumer, "./output"); err != nil {
+		log.Printf("failed to write output: %v", err)
+	}
 }
