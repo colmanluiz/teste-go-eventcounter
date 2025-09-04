@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log"
 	"strings"
 
 	"github.com/rabbitmq/amqp091-go"
@@ -15,7 +16,7 @@ var (
 )
 
 type MessageBody struct {
-	ID string `json:"id"`
+	MessageID string `json:"id"`
 }
 
 func getChannel() (*amqp091.Channel, error) {
@@ -76,7 +77,7 @@ func Receive(consumer *ConsumerStr) error {
 		return err
 	}
 
-	// processedMessages := make(map[string]bool) // implement later
+	processedMessages := make(map[string]bool)
 
 	for msg := range deliveries {
 		parts := strings.Split(msg.RoutingKey, ".")
@@ -90,15 +91,34 @@ func Receive(consumer *ConsumerStr) error {
 			return err
 		}
 
-		switch eventType {
-		case "created":
-			consumer.Created(ctx, userId)
-		case "updated":
-			consumer.Updated(ctx, userId)
-		case "deleted":
-			consumer.Deleted(ctx, userId)
+		if processedMessages[mb.MessageID] {
+			log.Printf("message already processed, msg ID: %s", mb.MessageID)
+			msg.Ack(false)
+			continue
 		}
 
+		switch eventType {
+		case "created":
+			if err := consumer.Created(ctx, userId); err != nil {
+				log.Printf("Failed to process message %s: %v", mb.MessageID, err)
+				msg.Ack(false)
+				continue
+			}
+		case "updated":
+			if err := consumer.Updated(ctx, userId); err != nil {
+				log.Printf("Failed to process message %s: %v", mb.MessageID, err)
+				msg.Ack(false)
+				continue
+			}
+		case "deleted":
+			if err := consumer.Deleted(ctx, userId); err != nil {
+				log.Printf("Failed to process message %s: %v", mb.MessageID, err)
+				msg.Ack(false)
+				continue
+			}
+		}
+
+		processedMessages[mb.MessageID] = true
 		msg.Ack(false)
 	}
 
