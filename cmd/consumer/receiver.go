@@ -6,6 +6,8 @@ import (
 	"errors"
 	"log"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/rabbitmq/amqp091-go"
 	eventcounter "github.com/reb-felipe/eventcounter/pkg"
@@ -68,9 +70,11 @@ func Declare() error { // declare the queue here because wants to make sure that
 }
 
 func Receive(consumer *eventcounter.ConsumerWrapper) error {
-	// createdCh := make(chan)
-	// updatedCh:= make(chan)
-	// deletedCh := make(chan)
+	var wg sync.WaitGroup
+
+	createdChan := make(chan EventMessage)
+	updatedChan := make(chan EventMessage)
+	deletedChan := make(chan EventMessage)
 
 	channel, err := getChannel()
 	if err != nil {
@@ -84,48 +88,57 @@ func Receive(consumer *eventcounter.ConsumerWrapper) error {
 
 	processedMessages := make(map[string]bool)
 
-	for msg := range deliveries {
-		parts := strings.Split(msg.RoutingKey, ".")
-		userId := parts[0]
-		eventType := parts[2]
-		ctx := context.Background()
+	timer := time.NewTimer(5 * time.Second)
+	defer timer.Stop()
 
-		mb := MessageBody{}
-		err := json.Unmarshal(msg.Body, &mb)
-		if err != nil {
-			return err
-		}
+	wg.Add(3)
+	go processCreatedEvents(createdChan, consumer, &wg)
+	go processUpdatedEvents(updatedChan, consumer, &wg)
+	go processDeletedEvents(deletedChan, consumer, &wg)
 
-		if processedMessages[mb.MessageID] {
-			log.Printf("message already processed, msg ID: %s", mb.MessageID)
+	for {
+		select {
+		case msg := <-deliveries:
+			if !timer.Stop() {
+				<-timer.C
+			}
+			timer.Reset(5 * time.Second)
+
+			parts := strings.Split(msg.RoutingKey, ".")
+			userId := parts[0]
+			eventType := parts[2]
+			ctx := context.Background()
+
+			mb := MessageBody{}
+			err := json.Unmarshal(msg.Body, &mb)
+			if err != nil {
+				return err
+			}
+
+			if processedMessages[mb.MessageID] {
+				log.Printf("message already processed, msg ID: %s", mb.MessageID)
+				msg.Ack(false)
+				continue
+			}
+
+			switch eventType {
+			case "created":
+				createdChan <- EventMessage{Context: ctx, UserID: userId}
+			case "updated":
+				updatedChan <- EventMessage{Context: ctx, UserID: userId}
+			case "deleted":
+				deletedChan <- EventMessage{Context: ctx, UserID: userId}
+			}
+
+			processedMessages[mb.MessageID] = true
 			msg.Ack(false)
-			continue
-		}
+		case <-timer.C:
+			close(createdChan)
+			close(updatedChan)
+			close(deletedChan)
 
-		switch eventType {
-		case "created":
-			if err := consumer.Created(ctx, userId); err != nil {
-				log.Printf("Failed to process message %s: %v", mb.MessageID, err)
-				msg.Ack(false)
-				continue
-			}
-		case "updated":
-			if err := consumer.Updated(ctx, userId); err != nil {
-				log.Printf("Failed to process message %s: %v", mb.MessageID, err)
-				msg.Ack(false)
-				continue
-			}
-		case "deleted":
-			if err := consumer.Deleted(ctx, userId); err != nil {
-				log.Printf("Failed to process message %s: %v", mb.MessageID, err)
-				msg.Ack(false)
-				continue
-			}
+			wg.Wait()
+			return nil
 		}
-
-		processedMessages[mb.MessageID] = true
-		msg.Ack(false)
 	}
-
-	return nil
 }
