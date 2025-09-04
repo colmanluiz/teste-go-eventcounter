@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+
+	eventcounter "github.com/reb-felipe/eventcounter/pkg"
 )
 
 type JSONOutput struct {
@@ -11,12 +13,12 @@ type JSONOutput struct {
 	Count  int    `json:"count"`
 }
 
-func WriteJSONOutput(consumer *ConsumerStr, outputDir string) error {
+func WriteJSONOutput(consumer *eventcounter.ConsumerWrapper, outputDir string) error {
 	if err := os.MkdirAll(outputDir, 0755); err != nil {
 		return err
 	}
 
-	eventCounts := consumer.eventCounts
+	eventCounts := consumer.EventCounts
 
 	createdUsers := []JSONOutput{}
 	updatedUsers := []JSONOutput{}

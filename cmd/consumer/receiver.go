@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/rabbitmq/amqp091-go"
+	eventcounter "github.com/reb-felipe/eventcounter/pkg"
 )
 
 var (
@@ -66,7 +67,11 @@ func Declare() error { // declare the queue here because wants to make sure that
 	return nil
 }
 
-func Receive(consumer *ConsumerStr) error {
+func Receive(consumer *eventcounter.ConsumerWrapper) error {
+	// createdCh := make(chan)
+	// updatedCh:= make(chan)
+	// deletedCh := make(chan)
+
 	channel, err := getChannel()
 	if err != nil {
 		return err
