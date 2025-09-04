@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"log"
 	"strings"
 	"sync"
@@ -23,24 +22,19 @@ type MessageBody struct {
 }
 
 func getChannel() (*amqp091.Channel, error) {
-	var err error
-	if channel != nil && !channel.IsClosed() {
+	if conn != nil && !conn.IsClosed() && channel != nil && !channel.IsClosed() {
 		return channel, nil
 	}
 
-	conn, err := amqp091.Dial(amqpUrl)
+	var err error
+	conn, err = amqp091.Dial(amqpUrl)
 	if err != nil {
 		return nil, err
 	}
 
-	channel, err := conn.Channel()
+	channel, err = conn.Channel()
 	if err != nil {
 		return nil, err
-	}
-	// TODO: Error handling
-
-	if channel.IsClosed() {
-		return nil, errors.New("channel is closed")
 	}
 
 	return channel, nil
